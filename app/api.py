@@ -1,24 +1,30 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import (
+    Flask,
+    request,
+    jsonify,
+    send_from_directory
+)
+
 from flask_cors import CORS
+
 from pathlib import Path
 
-from app.rag import ask
+from app.agent import NexacroAgent
 
 
-# ==================================================
-# 기본 설정
-# ==================================================
+BASE_DIR = Path(
+    __file__
+).resolve().parent.parent
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = BASE_DIR / "web"
 
+
 app = Flask(__name__)
+
 CORS(app)
 
+agent = NexacroAgent()
 
-# ==================================================
-# 메인 화면
-# ==================================================
 
 @app.route("/")
 def index():
@@ -29,24 +35,18 @@ def index():
     )
 
 
-# ==================================================
-# Health Check
-# ==================================================
-
 @app.route(
     "/health",
     methods=["GET"]
 )
 def health():
 
-    return jsonify({
-        "status": "ok"
-    })
+    return jsonify(
+        {
+            "status": "ok"
+        }
+    )
 
-
-# ==================================================
-# RAG 질문 API
-# ==================================================
 
 @app.route(
     "/api/ask",
@@ -56,24 +56,18 @@ def api_ask():
 
     try:
 
-        # --------------------------------------------------
-        # JSON 데이터 확인
-        # --------------------------------------------------
-
         data = request.get_json(
             silent=True
         )
 
         if not data:
 
-            return jsonify({
-                "error": "JSON body is required"
-            }), 400
-
-
-        # --------------------------------------------------
-        # 질문 확인
-        # --------------------------------------------------
+            return jsonify(
+                {
+                    "error":
+                        "JSON body is required"
+                }
+            ), 400
 
         question = data.get(
             "question",
@@ -85,61 +79,41 @@ def api_ask():
             str
         ):
 
-            return jsonify({
-                "error": "question must be a string"
-            }), 400
-
+            return jsonify(
+                {
+                    "error":
+                        "question must be a string"
+                }
+            ), 400
 
         question = question.strip()
 
-
         if not question:
 
-            return jsonify({
-                "error": "question is required"
-            }), 400
+            return jsonify(
+                {
+                    "error":
+                        "question is required"
+                }
+            ), 400
 
+        print("=" * 70)
+        print("Nexacro Agent API")
+        print("=" * 70)
+        print("질문:")
+        print(question)
+        print("Agent 실행 중...")
 
-        # --------------------------------------------------
-        # RAG 실행
-        #
-        # Hybrid Search
-        #       ↓
-        # Ranking
-        #       ↓
-        # LLM
-        # --------------------------------------------------
-
-        result = ask(
+        answer = agent.run(
             question
         )
 
-
-        # --------------------------------------------------
-        # RAG 결과 반환
-        # --------------------------------------------------
-
-        return jsonify({
-
-            "question":
-                result.get(
-                    "question",
-                    question
-                ),
-
-            "answer":
-                result.get(
-                    "answer",
-                    ""
-                ),
-
-            "contexts":
-                result.get(
-                    "contexts",
-                    []
-                )
-        })
-
+        return jsonify(
+            {
+                "question": question,
+                "answer": answer
+            }
+        )
 
     except Exception as e:
 
@@ -148,14 +122,12 @@ def api_ask():
             repr(e)
         )
 
-        return jsonify({
-            "error": str(e)
-        }), 500
+        return jsonify(
+            {
+                "error": str(e)
+            }
+        ), 500
 
-
-# ==================================================
-# Flask 실행
-# ==================================================
 
 if __name__ == "__main__":
 

@@ -1,5 +1,22 @@
 import re
-from app.hybrid_search import HybridSearch
+
+
+TOKEN_PATTERN = re.compile(
+    r"[가-힣]+|[a-zA-Z_][a-zA-Z0-9_]*|\d+"
+)
+
+
+def tokenize(text):
+
+    if not text:
+        return []
+
+    return [
+        token.lower()
+        for token in TOKEN_PATTERN.findall(
+            str(text)
+        )
+    ]
 
 
 class DocumentRanker:
@@ -7,208 +24,136 @@ class DocumentRanker:
     def __init__(self):
         pass
 
-    # --------------------------------------------------
-    # 질문에서 검색용 토큰 추출
-    # --------------------------------------------------
-    def tokenize(self, text):
+    def calculate_score(
+        self,
+        query,
+        document
+    ):
 
-        text = text.lower()
-
-        tokens = re.findall(
-            r"[가-힣]+|[a-zA-Z_][a-zA-Z0-9_]*|\d+(?:\.\d+)?",
-            text
+        metadata = document.get(
+            "metadata",
+            {}
         )
-
-        return tokens
-
-    # --------------------------------------------------
-    # API / 속성명 추출
-    #
-    # 예:
-    # truevalue
-    # falsevalue
-    # isChecked
-    # replace
-    # getColumn
-    # --------------------------------------------------
-    def extract_api_tokens(self, text):
-
-        tokens = self.tokenize(text)
-
-        api_tokens = []
-
-        for token in tokens:
-
-            if re.fullmatch(
-                r"[a-zA-Z_][a-zA-Z0-9_]*",
-                token
-            ):
-                api_tokens.append(token.lower())
-
-        return api_tokens
-
-    # --------------------------------------------------
-    # 질문 토큰과 문서 정확한 토큰 일치 점수
-    # --------------------------------------------------
-    def keyword_match_score(self, query, document):
-
-        query_tokens = self.tokenize(query)
-
-        if not query_tokens:
-            return 0.0
-
-        text = document.get("text", "").lower()
-
-        if not text:
-            return 0.0
-
-        matched = 0
-
-        for token in query_tokens:
-
-            if token in text:
-                matched += 1
-
-        return matched / len(query_tokens)
-
-    # --------------------------------------------------
-    # 제목 일치 점수
-    # --------------------------------------------------
-    def title_match_score(self, query, document):
-
-        query_tokens = self.tokenize(query)
-
-        if not query_tokens:
-            return 0.0
-
-        metadata = document.get("metadata", {})
 
         title = str(
-            metadata.get("title", "")
-        ).lower()
+            metadata.get(
+                "title",
+                ""
+            )
+        )
 
-        if not title:
-            return 0.0
+        section = str(
+            metadata.get(
+                "section",
+                ""
+            )
+        )
 
-        matched = 0
+        text = str(
+            document.get(
+                "text",
+                ""
+            )
+        )
+
+        query_tokens = tokenize(
+            query
+        )
+
+        title_tokens = set(
+            tokenize(title)
+        )
+
+        section_tokens = set(
+            tokenize(section)
+        )
+
+        text_tokens = set(
+            tokenize(text)
+        )
+
+        if not query_tokens:
+            return 0
+
+        keyword_match = 0
+        title_match = 0
+        section_match = 0
 
         for token in query_tokens:
 
-            if token in title:
-                matched += 1
+            if token in text_tokens:
+                keyword_match += 1
 
-        return matched / len(query_tokens)
+            if token in title_tokens:
+                title_match += 1
 
-    # --------------------------------------------------
-    # Section 일치 점수
-    # --------------------------------------------------
-    def section_match_score(self, query, document):
+            if token in section_tokens:
+                section_match += 1
 
-        metadata = document.get("metadata", {})
-
-        section = str(
-            metadata.get("section", "")
-        ).lower()
-
-        if not section:
-            return 0.0
-
-        query_lower = query.lower()
-
-        if section in query_lower:
-            return 1.0
-
-        return 0.0
-
-    # --------------------------------------------------
-    # API 이름 정확한 일치
-    # --------------------------------------------------
-    def api_match_score(self, query, document):
-
-        query_api = self.extract_api_tokens(query)
-
-        if not query_api:
-            return 0.0
-
-        text = document.get("text", "").lower()
-
-        matched = 0
-
-        for api in query_api:
-
-            pattern = r"\b" + re.escape(api) + r"\b"
-
-            if re.search(pattern, text):
-
-                matched += 1
-
-        return matched / len(query_api)
-
-    # --------------------------------------------------
-    # 최종 Ranking Score
-    # --------------------------------------------------
-    def calculate_score(self, query, document):
-
-        vector_score = float(
-            document.get("vector_score", 0.0)
+        # 중복 토큰 방지
+        query_count = max(
+            len(set(query_tokens)),
+            1
         )
 
-        keyword_score = float(
-            document.get("keyword_score", 0.0)
+        keyword_ratio = (
+            keyword_match
+            / query_count
         )
 
-        hybrid_score = float(
-            document.get("hybrid_score", 0.0)
+        title_ratio = (
+            title_match
+            / query_count
         )
 
-        keyword_match = self.keyword_match_score(
-            query,
-            document
+        section_ratio = (
+            section_match
+            / query_count
         )
 
-        title_match = self.title_match_score(
-            query,
-            document
+        hybrid_score = document.get(
+            "hybrid_score",
+            0
         )
 
-        section_match = self.section_match_score(
-            query,
-            document
+        vector_score = document.get(
+            "vector_score",
+            0
         )
 
-        api_match = self.api_match_score(
-            query,
-            document
+        keyword_score = document.get(
+            "keyword_score",
+            0
         )
 
-        # --------------------------------------------------
-        # Ranking 가중치
-        # --------------------------------------------------
-        score = (
+        score = 0
 
-            hybrid_score * 0.55
-
-            + vector_score * 0.10
-
-            + keyword_score * 0.10
-
-            + keyword_match * 0.10
-
-            + title_match * 0.10
-
-            + api_match * 0.05
+        score += (
+            hybrid_score * 0.45
         )
 
-        # Section 직접 지정 보너스
-        if section_match > 0:
+        score += (
+            vector_score * 0.10
+        )
 
-            score += 0.10
+        score += (
+            keyword_score * 0.10
+        )
+
+        score += (
+            keyword_ratio * 0.15
+        )
+
+        score += (
+            title_ratio * 0.15
+        )
+
+        score += (
+            section_ratio * 0.05
+        )
 
         return score
 
-    # --------------------------------------------------
-    # 문서 Ranking
-    # --------------------------------------------------
     def rank(
         self,
         query,
@@ -216,34 +161,33 @@ class DocumentRanker:
         top_k=5
     ):
 
-        ranked_documents = []
+        scored = []
 
         for document in documents:
 
-            document = document.copy()
-
-            ranking_score = self.calculate_score(
+            score = self.calculate_score(
                 query,
                 document
             )
 
-            document["ranking_score"] = ranking_score
+            document["ranking_score"] = score
 
-            ranked_documents.append(
+            scored.append(
                 document
             )
 
-        ranked_documents.sort(
-            key=lambda x: x["ranking_score"],
+        scored.sort(
+            key=lambda item:
+                item.get(
+                    "ranking_score",
+                    0
+                ),
             reverse=True
         )
 
-        return ranked_documents[:top_k]
+        return scored[:top_k]
 
 
-# --------------------------------------------------
-# 편의 함수
-# --------------------------------------------------
 def rank_documents(
     query,
     documents,
@@ -257,82 +201,3 @@ def rank_documents(
         documents=documents,
         top_k=top_k
     )
-
-
-# --------------------------------------------------
-# Ranking 테스트
-# --------------------------------------------------
-if __name__ == "__main__":
-
-    from app.hybrid_search import HybridSearch
-
-    query = "CheckBox의 truevalue 속성은 무엇인가?"
-
-    searcher = HybridSearch()
-
-    print("=" * 70)
-    print("Nexacro 17 Ranking Test")
-    print("=" * 70)
-
-    print(f"\n질문: {query}")
-
-    documents = searcher.search(
-        query=query,
-        top_k=10
-    )
-
-    ranked = rank_documents(
-        query=query,
-        documents=documents,
-        top_k=5
-    )
-
-    print("\n[Ranking 결과]")
-
-    for i, document in enumerate(
-        ranked,
-        start=1
-    ):
-
-        metadata = document.get(
-            "metadata",
-            {}
-        )
-
-        print(
-            f"\n{i}. "
-            f"Ranking={document.get('ranking_score', 0):.4f}"
-        )
-
-        print(
-            f"   Hybrid={document.get('hybrid_score', 0):.4f}"
-        )
-
-        print(
-            f"   Vector={document.get('vector_score', 0):.4f}"
-        )
-
-        print(
-            f"   Keyword={document.get('keyword_score', 0):.4f}"
-        )
-
-        print(
-            f"   Source={metadata.get('source', '')}"
-        )
-
-        print(
-            f"   Section={metadata.get('section', '')}"
-        )
-
-        print(
-            f"   Title={metadata.get('title', '')}"
-        )
-
-        text = document.get(
-            "text",
-            ""
-        )
-
-        print(
-            f"   Text={text[:300].replace(chr(10), ' ')}"
-        )
