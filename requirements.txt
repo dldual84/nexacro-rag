@@ -1,0 +1,10 @@
+ollama
+pymupdf
+chromadb
+fastapi
+uvicorn
+python-dotenv
+flask
+flask-cors
+beautifulsoup4
+rank-bm25

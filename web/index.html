@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Nexacro RAG</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f6f8;
+            color: #222;
+        }
+
+        .container {
+            width: 900px;
+            max-width: calc(100% - 40px);
+            margin: 50px auto;
+        }
+
+        h1 {
+            margin-bottom: 8px;
+        }
+
+        .description {
+            color: #777;
+            margin-bottom: 25px;
+        }
+
+        .question-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #question {
+            flex: 1;
+            padding: 14px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        #askButton {
+            width: 100px;
+            border: none;
+            border-radius: 6px;
+            background: #333;
+            color: white;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        #askButton:disabled {
+            background: #aaa;
+            cursor: default;
+        }
+
+        .answer-box {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 25px;
+            min-height: 300px;
+            white-space: pre-wrap;
+            line-height: 1.7;
+        }
+
+        .loading {
+            color: #888;
+        }
+
+        .error {
+            color: #d00;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Nexacro RAG</h1>
+
+    <div class="description">
+        Nexacro 17 개발 문서 기반 AI 질의응답
+    </div>
+
+    <div class="question-box">
+
+        <input
+            type="text"
+            id="question"
+            placeholder="질문을 입력하세요."
+        >
+
+        <button
+            id="askButton"
+            onclick="askQuestion()"
+        >
+            질문
+        </button>
+
+    </div>
+
+    <div
+        id="answer"
+        class="answer-box"
+    >
+        질문을 입력하면 답변이 표시됩니다.
+    </div>
+
+</div>
+
+
+<script>
+
+async function askQuestion() {
+
+    const questionInput = document.getElementById("question");
+    const answerBox = document.getElementById("answer");
+    const askButton = document.getElementById("askButton");
+
+    const question = questionInput.value.trim();
+
+    if (!question) {
+        alert("질문을 입력하세요.");
+        questionInput.focus();
+        return;
+    }
+
+    askButton.disabled = true;
+    answerBox.className = "answer-box loading";
+    answerBox.textContent = "답변을 생성하고 있습니다...";
+
+    try {
+
+        const response = await fetch(
+            "http://localhost:5000/api/ask",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    question: question
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "API 호출 실패");
+        }
+
+        answerBox.className = "answer-box";
+        answerBox.textContent = data.answer;
+
+    } catch (error) {
+
+        answerBox.className = "answer-box error";
+        answerBox.textContent =
+            "오류가 발생했습니다.\n\n" +
+            error.message;
+
+    } finally {
+
+        askButton.disabled = false;
+    }
+}
+
+
+document.getElementById("question").addEventListener(
+    "keydown",
+    function(event) {
+
+        if (event.key === "Enter") {
+            askQuestion();
+        }
+
+    }
+);
+
+</script>
+
+</body>
+</html>
