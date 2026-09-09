@@ -9,7 +9,15 @@ It only exposes them through Model Context Protocol so that
 an MCP-compatible AI host can call the Nexacro RAG tools directly.
 """
 
+import sys
+from pathlib import Path
 from typing import Any
+
+# 프로젝트 루트를 Python import path에 추가
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from mcp.server import MCPServer
 
