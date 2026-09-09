@@ -287,16 +287,16 @@ chroma_db/
 모델은 `.env`에서 설정합니다.
 
 ```env
-LLM_MODEL=exaone3.5_7.8b:latest
-EMBED_MODEL=qwen3-embedding-0.6b:latest
+LLM_MODEL=qwen3:8b
+EMBED_MODEL=nomic-embed-text:latest
 ```
 
 현재 권장 구성:
 
 | 용도 | 모델 |
 | --- | --- |
-| LLM | `exaone3.5_7.8b:latest` |
-| Embedding | `qwen3-embedding-0.6b:latest` |
+| LLM | `qwen3:8b` |
+| Embedding | `nomic-embed-text:latest` |
 
 ---
 
